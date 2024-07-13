@@ -135,7 +135,7 @@ class ExLlamaV2ArchParams:
             arch_recognized = True
             self.layer_keys += \
                 layer_keys_cohere_norms + \
-                layer_keys_internlm2_attn + \
+                layer_keys_llama_attn + \
                 layer_keys_llama_mlp
             self.expect_keys += \
                 expect_keys_llama

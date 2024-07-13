@@ -448,7 +448,7 @@ class ExLlamaV2Attention(ExLlamaV2Module):
                 cfg.head_dim,
                 cfg.max_seq_len,
                 self.has_residual,
-                cfg.arch.rope_style.value,
+                0 if cfg.arch.arch_string == "BasedformerParallelNeox" else cfg.arch.rope_style,
                 q_norm,
                 k_norm,
                 post_norm_weight,
@@ -896,7 +896,7 @@ class ExLlamaV2Attention(ExLlamaV2Module):
             )
 
         cfg = self.model.config
-        constants = self.model.get_device_tensors(self.device_idx)
+        constants = self.model.get_device_tensors(self.device_idx, scratch=False)
 
         batch_size, q_len, _ = hidden_states.shape
         direct = (batch_size == 1 and cache is not None and isinstance(cache, ExLlamaV2CacheBase))
@@ -964,6 +964,11 @@ class ExLlamaV2Attention(ExLlamaV2Module):
             q_states = q_states.view(batch_size, q_len, cfg.num_attention_heads, cfg.head_dim)
             k_states = k_states.view(batch_size, q_len, cfg.num_key_value_heads, cfg.head_dim)
             v_states = v_states.view(batch_size, q_len, cfg.num_key_value_heads, cfg.head_dim)
+            
+            # TODO: We made our rotary work for their quantized path here, but it's much slower than
+            # the fused path they use when quantized. We should make their rotary work for us.
+            apply_rotary_emb_func(q_states, constants.cos, constants.sin, interleaved=False, inplace=True, seqlen_offsets=past_len)
+            apply_rotary_emb_func(k_states, constants.cos, constants.sin, interleaved=False, inplace=True, seqlen_offsets=past_len)
 
             attn_output = attn_func(batch_size, q_len, q_states, k_states, v_states, attn_params, cfg)
 
@@ -974,6 +979,11 @@ class ExLlamaV2Attention(ExLlamaV2Module):
             q_states = q_states.view(batch_size, q_len, cfg.num_attention_heads, cfg.head_dim)
             k_states = k_states.view(batch_size, q_len, cfg.num_key_value_heads, cfg.head_dim)
             v_states = v_states.view(batch_size, q_len, cfg.num_key_value_heads, cfg.head_dim)
+
+            # TODO: We made our rotary work for their quantized path here, but it's much slower than
+            # the fused path they use when quantized. We should make their rotary work for us.
+            apply_rotary_emb_func(q_states, constants.cos, constants.sin, interleaved=False, inplace=True, seqlen_offsets=past_len)
+            apply_rotary_emb_func(k_states, constants.cos, constants.sin, interleaved=False, inplace=True, seqlen_offsets=past_len)
 
             if not direct:
                 batch_keys, batch_values = cache.get_kv_state(self.layer_idx, batch_size, 0, past_len)
