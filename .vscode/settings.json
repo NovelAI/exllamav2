@@ -1,0 +1,9 @@
+{
+	"[python]": {
+		// "editor.defaultFormatter": "",
+		// "editor.defaultFormatter": "ms-python.flake8",
+		"editor.formatOnSave": false,
+		"editor.stickyTabStops": true,
+		"editor.autoClosingBrackets": "never"
+	},
+}

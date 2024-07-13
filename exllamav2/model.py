@@ -142,7 +142,7 @@ class ExLlamaV2DeviceTensors:
         base = cfg.rotary_embedding_base
         alpha = cfg.scale_alpha_value or 1.0
         scale = cfg.scale_pos_emb or 1.0
-        head_dim = cfg.head_dim
+        head_dim = cfg.head_dim * cfg.partial_rotary_factor
         scaling_factor = 1.0
 
         # Alpha scaling for any rope_scaling type
@@ -175,15 +175,21 @@ class ExLlamaV2DeviceTensors:
         if scale != 1.0: t /= scale
 
         freqs = torch.einsum("i,j->ij", t, inv_freq)
-        if cfg.arch.rope_style == RopeStyle.NEOX:
-            emb = torch.cat((freqs, freqs), dim=-1)
-        elif cfg.arch.rope_style == RopeStyle.GPTJ:
-            emb = torch.repeat_interleave(freqs, 2, dim=-1)
-        else:
-            raise ValueError()
+        # if cfg.arch.rope_style == RopeStyle.NEOX:
+        #     emb = torch.cat((freqs, freqs), dim=-1)
+        # elif cfg.arch.rope_style == RopeStyle.GPTJ:
+        #     emb = torch.repeat_interleave(freqs, 2, dim=-1)
+        # else:
+        #     raise ValueError()
 
-        self.sin = emb.sin()[None, None, :, :]
-        self.cos = emb.cos()[None, None, :, :]
+        # flash rotary handles the duplication
+        emb = freqs
+
+        # self.sin = emb.sin()[None, None, :, :]
+        # self.cos = emb.cos()[None, None, :, :]
+        self.sin = emb.sin()
+        self.cos = emb.cos()
+        # print("just created", self.sin.shape, "head dim", head_dim, inv_freq.shape, freqs.shape, emb.shape)
         if scaling_factor != 1.0:
             self.sin *= scaling_factor
             self.cos *= scaling_factor

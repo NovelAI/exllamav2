@@ -89,6 +89,7 @@ class ExLlamaV2Config:
     norm_eps: float | None
     vocab_size: int
     rotary_embedding_base: float
+    partial_rotary_factor: float  # partial rotary for parallelneox
     scale_long_factor: list[float] | None
     scale_short_factor: list[float] | None
     alt_rope_method: str | None
@@ -121,6 +122,7 @@ class ExLlamaV2Config:
         self.max_output_len = None
         self.scale_pos_emb = 1.0
         self.scale_alpha_value = 1.0
+        self.partial_rotary_factor = 1.0
         self.scale_long_factor = None
         self.scale_short_factor = None
         self.alt_rope_method = None
@@ -254,6 +256,7 @@ class ExLlamaV2Config:
         # Positional embeddings
 
         self.rotary_embedding_base = read(read_config, float, ["rope_theta", "attn_config->rope_theta"], 10000.0)
+        self.partial_rotary_factor = read(read_config, float, ["partial_rotary_factor"], 1.0)
 
         self.max_seq_len = read(read_config, int,["max_sequence_length",
                                                   "model_max_length",

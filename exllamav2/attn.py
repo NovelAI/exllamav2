@@ -18,6 +18,7 @@ import torch.nn.functional as F
 import inspect
 import os
 # from line_profiler import profile
+from flash_attn.layers.rotary import apply_rotary_emb_func
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -664,17 +665,20 @@ class ExLlamaV2Attention(ExLlamaV2Module):
                 q = self.q_norm.forward(q)
                 k = self.k_norm.forward(k)
             if cfg.arch.rope_style != RopeStyle.NONE:
+
                 for t, heads in [(q, cfg.num_attention_heads), (k, cfg.num_key_value_heads)]:
-                    ext_c.rope_(
-                        t,
-                        constants.sin,
-                        constants.cos,
-                        0,
-                        heads,
-                        cfg.head_dim,
-                        cache_seqlens,
-                        cfg.arch.rope_style == RopeStyle.NEOX
-                    )
+                    # ext_c.rope_(
+                    #     t,
+                    #     constants.sin,
+                    #     constants.cos,
+                    #     0,
+                    #     heads,
+                    #     cfg.head_dim,
+                    #     cache_seqlens,
+                    #     cfg.arch.rope_style == RopeStyle.NEOX
+                    # )
+                    # print(f"t {std(t)}\nsin {std(constants.sin)}\ncos {std(constants.cos)}\nheads {heads}\ndim {cfg.head_dim}\ncache_seqlens {(cache_seqlens)}\nrope_style {cfg.arch.rope_style}")
+                    apply_rotary_emb_func(t, constants.cos, constants.sin, interleaved=cfg.arch.rope_style != RopeStyle.NEOX, inplace=True, seqlen_offsets=cache_seqlens, max_seqlen=attn_params.max_cache_seqlen)
             if attn_params.is_sequential:
                 k_ = k_cache_f[:, attn_params.first_index : attn_params.first_index + q_len, :, :]
                 v_ = v_cache_f[:, attn_params.first_index : attn_params.first_index + q_len, :, :]
@@ -1053,9 +1057,15 @@ class ExLlamaV2Attention(ExLlamaV2Module):
         else:
             position_offsets = none_tensor
 
+
         if cfg.arch.rope_style != RopeStyle.NONE:
-            ext_c.rope_(query_states, constants.sin, constants.cos, past_len, num_attention_heads, head_dim, position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
-            ext_c.rope_(key_states, constants.sin, constants.cos, past_len, num_key_value_heads, head_dim, position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
+            # ext_c.rope_(query_states, constants.sin, constants.cos, past_len, num_attention_heads, head_dim, position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
+            # ext_c.rope_(key_states, constants.sin, constants.cos, past_len, num_key_value_heads, head_dim, position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
+            # print(f" key_states {key_states} sin {constants.sin} cos {constants.cos} past_len {past_len} num_key_value_heads {num_key_value_heads} head_dim {head_dim} position_offsets {position_offsets} cfg.arch.rope_style {cfg.arch.rope_style}")
+            assert position_offsets.is_meta, "this doesn't actually run properly"
+            # print(f" key_states {std(key_states)} sin {std(constants.sin)} cos {std(constants.cos)} past_len {past_len} num_key_value_heads {num_key_value_heads} head_dim {head_dim} position_offsets {(position_offsets)} cfg.arch.rope_style {cfg.arch.rope_style}")
+            # apply_rotary_emb_func(query_states, constants.cos, constants.sin, interleaved=cfg.arch.rope_style != RopeStyle.NEOX, inplace=True, seqlen_offsets=past_len, max_seqlen=attn_params.max_cache_seqlen)
+            # raise NotImplementedError("I dunno")
 
         # Add keys and values to cache
 
