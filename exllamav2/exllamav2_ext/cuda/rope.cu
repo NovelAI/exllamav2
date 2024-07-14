@@ -20,14 +20,13 @@ __forceinline__ __device__ void rope_cuda_arr_neox
     int threads_y
 )
 {
-    int rotary_dim = head_dim;
     MatrixView_half_rw x_(x, MAX_ROWS, head_dim);
-    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, rotary_dim);
-    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, rotary_dim);
+    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, head_dim);
+    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, head_dim);
 
     int column = (blockIdx.x * THREADS_X + threadIdx.x) * 2;
-    int half_dim = rotary_dim / 2;
-    if (column >= rotary_dim) return;
+    int half_dim = head_dim / 2;
+    if (column >= head_dim) return;
 
     int row = blockIdx.y * threads_y + threadIdx.y;
     if (row >= rows_per_batch) return;
@@ -80,13 +79,12 @@ __forceinline__ __device__ void rope_cuda_arr_gptj
     int threads_y
 )
 {
-    int rotary_dim = head_dim;
     MatrixView_half_rw x_(x, MAX_ROWS, head_dim);
-    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, rotary_dim);
-    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, rotary_dim);
+    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, head_dim);
+    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, head_dim);
 
     int column = (blockIdx.x * THREADS_X + threadIdx.x) * 2;
-    if (column >= rotary_dim) return;
+    if (column >= head_dim) return;
 
     int row = blockIdx.y * threads_y + threadIdx.y;
     if (row >= rows_per_batch) return;
@@ -185,7 +183,6 @@ void rope_cuda
     const bool neox_style
 )
 {
-    int rotary_dim = head_dim;
     // For large batch sizes we risk exceeding grid dimension of 65535, so shift to block dimension instead
 
     int threads_y = THREADS_Y;
@@ -194,7 +191,7 @@ void rope_cuda
     dim3 blockDim, gridDim;
     blockDim.x = THREADS_X;
     blockDim.y = threads_y;
-    gridDim.x = DIVIDE(rotary_dim / 2, THREADS_X);
+    gridDim.x = DIVIDE(head_dim / 2, THREADS_X);
     gridDim.y = DIVIDE(rows_per_batch, threads_y);
     gridDim.z = batch_size;
 
@@ -231,7 +228,6 @@ void rope_cuda_qk
 )
 {
     // For large batch sizes we risk exceeding grid dimension of 65535, so shift to block dimension instead
-    int rotary_dim = head_dim;
 
     int threads_y = THREADS_Y;
     int rows_per_batch = max(rows_per_batch_q, rows_per_batch_k);
@@ -240,7 +236,7 @@ void rope_cuda_qk
     dim3 blockDim, gridDim;
     blockDim.x = THREADS_X;
     blockDim.y = threads_y;
-    gridDim.x = DIVIDE(rotary_dim / 2 / (neox_style ? 2 : 1), THREADS_X);
+    gridDim.x = DIVIDE(head_dim / 2 / (neox_style ? 2 : 1), THREADS_X);
     gridDim.y = DIVIDE(rows_per_batch, threads_y);
     gridDim.z = batch_size;
 
