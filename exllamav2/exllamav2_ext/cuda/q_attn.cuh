@@ -44,6 +44,7 @@ public:
     int num_heads;
     int num_kv_heads;
     int head_dim;
+    int rotary_dim;
     int max_seq_len;
 
     std::unordered_map<uintptr_t, std::tuple<half*, half*, int>> q_proj_lora;
@@ -75,6 +76,7 @@ public:
         int _num_heads,
         int _num_kv_heads,
         int _head_dim,
+        int _rotary_dim,
         int _max_seq_len,
         bool _has_residual,
         int _rope_style,

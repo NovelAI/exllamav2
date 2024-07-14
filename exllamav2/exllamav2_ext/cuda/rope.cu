@@ -14,6 +14,7 @@ __forceinline__ __device__ void rope_cuda_arr_neox
     const half* __restrict__ cos,
     int rows_per_batch,
     int head_dim,
+    int rotary_dim,
     int num_heads,
     int past_len,
     const int32_t* __restrict__ past_lens,
@@ -21,12 +22,12 @@ __forceinline__ __device__ void rope_cuda_arr_neox
 )
 {
     MatrixView_half_rw x_(x, MAX_ROWS, head_dim);
-    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, head_dim);
-    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, head_dim);
+    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, rotary_dim);
+    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, rotary_dim);
 
     int column = (blockIdx.x * THREADS_X + threadIdx.x) * 2;
-    int half_dim = head_dim / 2;
-    if (column >= half_dim) return;
+    int half_dim = rotary_dim / 2;
+    if (column >= rotary_dim) return;
 
     int row = blockIdx.y * threads_y + threadIdx.y;
     if (row >= rows_per_batch) return;
@@ -73,6 +74,7 @@ __forceinline__ __device__ void rope_cuda_arr_gptj
     const half* __restrict__ cos,
     int rows_per_batch,
     int head_dim,
+    int rotary_dim,
     int num_heads,
     int past_len,
     const int32_t* __restrict__ past_lens,
@@ -80,11 +82,11 @@ __forceinline__ __device__ void rope_cuda_arr_gptj
 )
 {
     MatrixView_half_rw x_(x, MAX_ROWS, head_dim);
-    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, head_dim);
-    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, head_dim);
+    MatrixView_half sin_(sin, MAX_POS_EMBEDDINGS, rotary_dim);
+    MatrixView_half cos_(cos, MAX_POS_EMBEDDINGS, rotary_dim);
 
     int column = (blockIdx.x * THREADS_X + threadIdx.x) * 2;
-    if (column >= head_dim) return;
+    if (column >= rotary_dim) return;
 
     int row = blockIdx.y * threads_y + threadIdx.y;
     if (row >= rows_per_batch) return;
@@ -127,6 +129,7 @@ __global__ void rope_cuda_kernel
     const half* __restrict__ cos,
     int rows_per_batch,
     int head_dim,
+    int rotary_dim,
     int num_heads,
     int past_len,
     const int32_t* __restrict__ past_lens,
@@ -135,9 +138,9 @@ __global__ void rope_cuda_kernel
 )
 {
     if (neox_style)
-        rope_cuda_arr_neox(x, sin, cos, rows_per_batch, head_dim, num_heads, past_len, past_lens, threads_y);
+        rope_cuda_arr_neox(x, sin, cos, rows_per_batch, head_dim, rotary_dim, num_heads, past_len, past_lens, threads_y);
     else
-        rope_cuda_arr_gptj(x, sin, cos, rows_per_batch, head_dim, num_heads, past_len, past_lens, threads_y);
+        rope_cuda_arr_gptj(x, sin, cos, rows_per_batch, head_dim, rotary_dim, num_heads, past_len, past_lens, threads_y);
 }
 
 __global__ void rope_cuda_qk_kernel
@@ -149,6 +152,7 @@ __global__ void rope_cuda_qk_kernel
     int rows_per_batch_q,
     int rows_per_batch_k,
     int head_dim,
+    int rotary_dim,
     int num_heads_q,
     int num_heads_k,
     int past_len,
@@ -159,13 +163,13 @@ __global__ void rope_cuda_qk_kernel
 {
     if (neox_style)
     {
-        rope_cuda_arr_neox(x_q, sin, cos, rows_per_batch_q, head_dim, num_heads_q, past_len, past_lens, threads_y);
-        rope_cuda_arr_neox(x_k, sin, cos, rows_per_batch_k, head_dim, num_heads_k, past_len, past_lens, threads_y);
+        rope_cuda_arr_neox(x_q, sin, cos, rows_per_batch_q, head_dim, rotary_dim, num_heads_q, past_len, past_lens, threads_y);
+        rope_cuda_arr_neox(x_k, sin, cos, rows_per_batch_k, head_dim, rotary_dim, num_heads_k, past_len, past_lens, threads_y);
     }
     else
     {
-        rope_cuda_arr_gptj(x_q, sin, cos, rows_per_batch_q, head_dim, num_heads_q, past_len, past_lens, threads_y);
-        rope_cuda_arr_gptj(x_k, sin, cos, rows_per_batch_k, head_dim, num_heads_k, past_len, past_lens, threads_y);
+        rope_cuda_arr_gptj(x_q, sin, cos, rows_per_batch_q, head_dim, rotary_dim, num_heads_q, past_len, past_lens, threads_y);
+        rope_cuda_arr_gptj(x_k, sin, cos, rows_per_batch_k, head_dim, rotary_dim, num_heads_k, past_len, past_lens, threads_y);
     }
 }
 
@@ -177,6 +181,7 @@ void rope_cuda
     const int batch_size,
     const int rows_per_batch,
     const int head_dim,
+    const int rotary_dim,
     const int num_heads,
     const int past_len,
     const int32_t* past_lens,
@@ -191,7 +196,7 @@ void rope_cuda
     dim3 blockDim, gridDim;
     blockDim.x = THREADS_X;
     blockDim.y = threads_y;
-    gridDim.x = DIVIDE(head_dim / 2, THREADS_X);
+    gridDim.x = DIVIDE(rotary_dim / 2, THREADS_X);
     gridDim.y = DIVIDE(rows_per_batch, threads_y);
     gridDim.z = batch_size;
 
@@ -202,6 +207,7 @@ void rope_cuda
         cos,
         rows_per_batch,
         head_dim,
+        rotary_dim,
         num_heads,
         past_len,
         past_lens,
@@ -220,6 +226,7 @@ void rope_cuda_qk
     const int rows_per_batch_q,
     const int rows_per_batch_k,
     const int head_dim,
+    const int rotary_dim,
     const int num_heads_q,
     const int num_heads_k,
     const int past_len,
@@ -236,7 +243,7 @@ void rope_cuda_qk
     dim3 blockDim, gridDim;
     blockDim.x = THREADS_X;
     blockDim.y = threads_y;
-    gridDim.x = DIVIDE(head_dim / 2 / (neox_style ? 2 : 1), THREADS_X);
+    gridDim.x = DIVIDE(rotary_dim / 2 / (neox_style ? 2 : 1), THREADS_X);
     gridDim.y = DIVIDE(rows_per_batch, threads_y);
     gridDim.z = batch_size;
 
@@ -249,6 +256,7 @@ void rope_cuda_qk
         rows_per_batch_q,
         rows_per_batch_k,
         head_dim,
+        rotary_dim,
         num_heads_q,
         num_heads_k,
         past_len,
