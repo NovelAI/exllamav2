@@ -27,7 +27,7 @@ __forceinline__ __device__ void rope_cuda_arr_neox
 
     int column = (blockIdx.x * THREADS_X + threadIdx.x) * 2;
     int half_dim = rotary_dim / 2;
-    if (column >= rotary_dim) return;
+    if (column >= half_dim) return;
 
     int row = blockIdx.y * threads_y + threadIdx.y;
     if (row >= rows_per_batch) return;
