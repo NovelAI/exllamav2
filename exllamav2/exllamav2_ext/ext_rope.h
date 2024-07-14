@@ -7,7 +7,6 @@ void rope_
     int past_len,
     int num_heads,
     int head_dim,
-    int rotary_dim,
     torch::Tensor offsets,
     bool neox_style
 );

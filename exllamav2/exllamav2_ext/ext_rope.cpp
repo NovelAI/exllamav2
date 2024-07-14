@@ -25,7 +25,6 @@ void rope_
     int past_len,
     int num_heads,
     int head_dim,
-    int rotary_dim,
     torch::Tensor offsets,
     bool neox_style
 )
@@ -33,8 +32,8 @@ void rope_
     TORCH_CHECK_DTYPE(x, kHalf);
     TORCH_CHECK_DTYPE(sin, kHalf);
     TORCH_CHECK_DTYPE(cos, kHalf);
-    TORCH_CHECK(rotary_dim == cos.size(-1), "cos table does not match rotary_dim");
-    TORCH_CHECK(rotary_dim == sin.size(-1), "sin table does not match rotary_dim");
+    TORCH_CHECK(head_dim == cos.size(-1), "cos table does not match head_dim");
+    TORCH_CHECK(head_dim == sin.size(-1), "sin table does not match head_dim");
     TORCH_CHECK_DTYPE_OPT(offsets, kInt);
 
     int batch_size = x.size(0);
@@ -50,7 +49,6 @@ void rope_
         batch_size,
         rows_per_batch,
         head_dim,
-        rotary_dim,
         num_heads,
         past_len,
         offsets.device().is_meta() ? NULL : (int32_t*) offsets.data_ptr(),

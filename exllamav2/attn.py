@@ -446,7 +446,6 @@ class ExLlamaV2Attention(ExLlamaV2Module):
                 cfg.num_attention_heads,
                 cfg.num_key_value_heads,
                 cfg.head_dim,
-                cfg.rotary_dim,
                 cfg.max_seq_len,
                 self.has_residual,
                 cfg.arch.rope_style.value,
@@ -675,7 +674,7 @@ class ExLlamaV2Attention(ExLlamaV2Module):
                         0,
                         heads,
                         cfg.head_dim,
-                        int(cfg.head_dim * cfg.partial_rotary_factor),
+                        # int(cfg.head_dim * cfg.partial_rotary_factor),
                         cache_seqlens,
                         cfg.arch.rope_style == RopeStyle.NEOX
                     )
@@ -1065,9 +1064,9 @@ class ExLlamaV2Attention(ExLlamaV2Module):
             query_states2 = query_states.clone()
             print("original query", query_states)
             ext_c.rope_(query_states, constants.sin, constants.cos, past_len, num_attention_heads, head_dim,
-                        int(cfg.head_dim * cfg.partial_rotary_factor), position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
+                        position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
             ext_c.rope_(key_states, constants.sin, constants.cos, past_len, num_key_value_heads, head_dim,
-                        int(cfg.head_dim * cfg.partial_rotary_factor), position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
+                        position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
             # print(f" key_states {key_states} sin {constants.sin} cos {constants.cos} past_len {past_len} num_key_value_heads {num_key_value_heads} head_dim {head_dim} position_offsets {position_offsets} cfg.arch.rope_style {cfg.arch.rope_style}")
             # assert position_offsets.is_meta, "this doesn't actually run properly"
             # print(f" key_states {std(key_states)} sin {std(constants.sin)} cos {std(constants.cos)} past_len {past_len} num_key_value_heads {num_key_value_heads} head_dim {head_dim} position_offsets {(position_offsets)} cfg.arch.rope_style {cfg.arch.rope_style}")

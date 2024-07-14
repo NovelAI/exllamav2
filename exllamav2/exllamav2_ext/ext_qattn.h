@@ -19,7 +19,6 @@ uintptr_t make_q_attn
     int num_heads,
     int num_kv_heads,
     int head_dim,
-    int rotary_dim,
     int max_seq_len,
     bool has_residual,
     int rope_style,
