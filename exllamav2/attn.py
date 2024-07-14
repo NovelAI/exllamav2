@@ -1061,19 +1061,10 @@ class ExLlamaV2Attention(ExLlamaV2Module):
 
 
         if cfg.arch.rope_style != RopeStyle.NONE:
-            print("partial rotary", int(cfg.head_dim * cfg.partial_rotary_factor))
-            query_states2 = query_states.clone()
-            print("original query", query_states)
             ext_c.rope_(query_states, constants.sin, constants.cos, past_len, num_attention_heads, head_dim,
                         int(cfg.head_dim * cfg.partial_rotary_factor), position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
             ext_c.rope_(key_states, constants.sin, constants.cos, past_len, num_key_value_heads, head_dim,
                         int(cfg.head_dim * cfg.partial_rotary_factor), position_offsets, cfg.arch.rope_style == RopeStyle.NEOX)
-            # print(f" key_states {key_states} sin {constants.sin} cos {constants.cos} past_len {past_len} num_key_value_heads {num_key_value_heads} head_dim {head_dim} position_offsets {position_offsets} cfg.arch.rope_style {cfg.arch.rope_style}")
-            # assert position_offsets.is_meta, "this doesn't actually run properly"
-            # print(f" key_states {std(key_states)} sin {std(constants.sin)} cos {std(constants.cos)} past_len {past_len} num_key_value_heads {num_key_value_heads} head_dim {head_dim} position_offsets {(position_offsets)} cfg.arch.rope_style {cfg.arch.rope_style}")
-            # print("pastlen", past_len)
-            apply_rotary_emb_func(query_states2, constants.cos2, constants.sin2, interleaved=cfg.arch.rope_style != RopeStyle.NEOX, inplace=True, seqlen_offsets=past_len)
-            assert query_states2.allclose(query_states, atol=1e-2), f"Rope not working {query_states2} {query_states}"
 
         # Add keys and values to cache
 
