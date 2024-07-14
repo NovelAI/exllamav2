@@ -667,19 +667,19 @@ class ExLlamaV2Attention(ExLlamaV2Module):
             if cfg.arch.rope_style != RopeStyle.NONE:
 
                 for t, heads in [(q, cfg.num_attention_heads), (k, cfg.num_key_value_heads)]:
-                    ext_c.rope_(
-                        t,
-                        constants.sin,
-                        constants.cos,
-                        0,
-                        heads,
-                        cfg.head_dim,
-                        # int(cfg.head_dim * cfg.partial_rotary_factor),
-                        cache_seqlens,
-                        cfg.arch.rope_style == RopeStyle.NEOX
-                    )
+                    # ext_c.rope_(
+                    #     t,
+                    #     constants.sin,
+                    #     constants.cos,
+                    #     0,
+                    #     heads,
+                    #     cfg.head_dim,
+                    #     # int(cfg.head_dim * cfg.partial_rotary_factor),
+                    #     cache_seqlens,
+                    #     cfg.arch.rope_style == RopeStyle.NEOX
+                    # )
                     # print(f"t {std(t)}\nsin {std(constants.sin)}\ncos {std(constants.cos)}\nheads {heads}\ndim {cfg.head_dim}\ncache_seqlens {(cache_seqlens)}\nrope_style {cfg.arch.rope_style}")
-                    # apply_rotary_emb_func(t, constants.cos, constants.sin, interleaved=cfg.arch.rope_style != RopeStyle.NEOX, inplace=True, seqlen_offsets=cache_seqlens, max_seqlen=attn_params.max_cache_seqlen)
+                    apply_rotary_emb_func(t, constants.cos, constants.sin, interleaved=cfg.arch.rope_style != RopeStyle.NEOX, inplace=True, seqlen_offsets=cache_seqlens, max_seqlen=attn_params.max_cache_seqlen)
             if attn_params.is_sequential:
                 k_ = k_cache_f[:, attn_params.first_index : attn_params.first_index + q_len, :, :]
                 v_ = v_cache_f[:, attn_params.first_index : attn_params.first_index + q_len, :, :]
