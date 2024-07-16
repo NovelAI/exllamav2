@@ -27,7 +27,7 @@ class ExLlamaV2Linear(ExLlamaV2Module):
     q4_weight: torch.Tensor | None
     q4_scales: torch.Tensor | None
     fp16_bias: torch.Tensor | None
-    matmul_dtype: torch.dtype | None
+    bias_hack: torch.Tensor | None
 
     temp_dq: torch.tensor
     padding: int
@@ -55,8 +55,7 @@ class ExLlamaV2Linear(ExLlamaV2Module):
                  f_beg: int = None,
                  f_end: int = None,
                  is_sub_module: bool = True,
-                 altpack_qkv: bool = False,
-                 matmul_dtype: torch.dtype | None = None):
+                 altpack_qkv: bool = False):
         super().__init__(model, key)
 
         self.is_sub_module = is_sub_module
@@ -81,7 +80,7 @@ class ExLlamaV2Linear(ExLlamaV2Module):
         self.q4_weight = None
         self.q4_scales = None
         self.fp16_bias = None
-        self.matmul_dtype = matmul_dtype
+        self.bias_hack = None
 
         self.lora_a_tensors = {}
         self.lora_b_tensors = {}
@@ -120,7 +119,8 @@ class ExLlamaV2Linear(ExLlamaV2Module):
             self.q_handle = ext.make_q_matrix(w,
                                               self.temp_dq,
                                               prescale = self.prescale,
-                                              max_dq_rows = self.model.config.max_dq_size // self.out_features)
+                                              max_dq_rows = self.model.config.max_dq_size // self.out_features,
+                                              bias=self.bias_hack)
             self.prev_prescale = self.prescale
             self.prescale = 1
 
@@ -252,7 +252,7 @@ class ExLlamaV2Linear(ExLlamaV2Module):
             else:
                 return hidden_states_out
 
-        if self.q_handle is not None and not force_recons and self.matmul_dtype is None:
+        if self.q_handle is not None and not force_recons:
 
             output_shape = hidden_states.shape[:-1] + (self.out_features,)
             hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
@@ -264,9 +264,6 @@ class ExLlamaV2Linear(ExLlamaV2Module):
         else:
 
             matrix = self.get_weight_tensor_dq()
-            if self.matmul_dtype is not None:
-                hidden_states = hidden_states.to(self.matmul_dtype)
-                matrix = matrix.to(self.matmul_dtype)
 
             hidden_states_out = torch.matmul(hidden_states, matrix)
             if self.has_bias:

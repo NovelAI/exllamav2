@@ -320,12 +320,11 @@ def make_q_matrix(w: dict,
                   temp_dq: torch.Tensor,
                   key: str = None,
                   prescale: float = 1,
-                  max_dq_rows = 0):
+                  max_dq_rows = 0,
+                  bias = None,):
 
     # EXL2
-
     if "q_weight" in w:
-
         w["q_scale_max"] *= prescale / 256
         w["q_perm"] = w["q_perm"].short()
         w["q_invperm"] = w["q_invperm"].short()
@@ -333,6 +332,11 @@ def make_q_matrix(w: dict,
         if "q_group_map" not in w:
             w["q_group_map"] = make_group_map(w["q_groups"], w["q_weight"].shape[0])
 
+        if bias is not None:
+            print("bias")
+            load_bias = bias
+        else:
+            load_bias = w.get("bias", none_tensor)
         return ext_c.make_q_matrix(w["q_weight"],
                                    w["q_perm"],
                                    w["q_invperm"],
@@ -343,14 +347,13 @@ def make_q_matrix(w: dict,
                                    none_tensor,
                                    none_tensor,
                                    none_tensor,
-                                   w.get("bias", none_tensor),
+                                   load_bias,
                                    temp_dq,
                                    max_dq_rows)
 
     # GPTQ
 
     elif "qweight" in w:
-
         if prescale != 1: w["scales"] *= prescale
         if w["scales"].dtype == torch.float: w["scales"] = w["scales"].half()
 
@@ -378,7 +381,6 @@ def make_q_matrix(w: dict,
         # GPTQ without g_idx
 
         else:
-
             return ext_c.make_q_matrix(w["qweight"],
                                        none_tensor,
                                        none_tensor,
