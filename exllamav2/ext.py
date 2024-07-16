@@ -320,8 +320,7 @@ def make_q_matrix(w: dict,
                   temp_dq: torch.Tensor,
                   key: str = None,
                   prescale: float = 1,
-                  max_dq_rows = 0,
-                  bias = None,):
+                  max_dq_rows = 0):
 
     # EXL2
     if "q_weight" in w:
@@ -332,11 +331,6 @@ def make_q_matrix(w: dict,
         if "q_group_map" not in w:
             w["q_group_map"] = make_group_map(w["q_groups"], w["q_weight"].shape[0])
 
-        if bias is not None:
-            print("bias")
-            load_bias = bias
-        else:
-            load_bias = w.get("bias", none_tensor)
         return ext_c.make_q_matrix(w["q_weight"],
                                    w["q_perm"],
                                    w["q_invperm"],
@@ -347,7 +341,7 @@ def make_q_matrix(w: dict,
                                    none_tensor,
                                    none_tensor,
                                    none_tensor,
-                                   load_bias,
+                                   w.get("bias", none_tensor),
                                    temp_dq,
                                    max_dq_rows)
 

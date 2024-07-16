@@ -27,7 +27,6 @@ class ExLlamaV2Linear(ExLlamaV2Module):
     q4_weight: torch.Tensor | None
     q4_scales: torch.Tensor | None
     fp16_bias: torch.Tensor | None
-    bias_hack: torch.Tensor | None
 
     temp_dq: torch.tensor
     padding: int
@@ -80,7 +79,6 @@ class ExLlamaV2Linear(ExLlamaV2Module):
         self.q4_weight = None
         self.q4_scales = None
         self.fp16_bias = None
-        self.bias_hack = None
 
         self.lora_a_tensors = {}
         self.lora_b_tensors = {}
@@ -119,8 +117,7 @@ class ExLlamaV2Linear(ExLlamaV2Module):
             self.q_handle = ext.make_q_matrix(w,
                                               self.temp_dq,
                                               prescale = self.prescale,
-                                              max_dq_rows = self.model.config.max_dq_size // self.out_features,
-                                              bias=self.bias_hack)
+                                              max_dq_rows = self.model.config.max_dq_size // self.out_features)
             self.prev_prescale = self.prescale
             self.prescale = 1
 
