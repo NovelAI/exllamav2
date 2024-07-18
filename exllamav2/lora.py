@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 from exllamav2.config import ExLlamaV2Config
 from exllamav2.linear import ExLlamaV2Linear
 import os, json
@@ -67,7 +68,7 @@ class ExLlamaV2Lora:
             read_config = json.load(f)
 
         self.lora_r = read_config["r"]
-        self.lora_alpha = float(read_config["lora_alpha"])
+        self.lora_alpha = float(read_config.get("lora_alpha", read_config.get("alpha", 1.0)))
         self.lora_scaling *= self.lora_alpha / self.lora_r
 
         if "fan_in_fan_out" in read_config and read_config["fan_in_fan_out"]:
@@ -79,6 +80,42 @@ class ExLlamaV2Lora:
             f = safe_load_file(self.lora_path, device = "cpu")
         else:
             f = load_file(self.lora_path, map_location = "cpu")
+
+        # Convert Basedformer LoRA checkpoint to EXL2 format
+        f_conv = {}
+        if "lora_config" in f:
+            self.lora_r = f["lora_config"]["r"]
+            self.lora_alpha = f["lora_config"]["alpha"]
+            self.lora_scaling = lora_scaling * (self.lora_alpha / self.lora_r)
+        for k, v in f.items():
+            k_t = re.sub("(lora_[AB]\.).*\.", lambda x: x[1], k)
+            if ".ff.ff1.lora_" in k:
+                if "lora_A" in k:
+                    f_conv[k_t.replace(".ff.ff1.lora_", ".mlp.up_proj.lora_")] = v
+                    f_conv[k_t.replace(".ff.ff1.lora_", ".mlp.gate_proj.lora_")] = v
+                else:
+                    v_up, v_gate = torch.chunk(v, 2, dim=0)
+                    f_conv[k_t.replace(".ff.ff1.lora_", ".mlp.up_proj.lora_")] = v_up
+                    f_conv[k_t.replace(".ff.ff1.lora_", ".mlp.gate_proj.lora_")] = v_gate
+            elif ".ff.ff2.lora_" in k:
+                f_conv[k_t.replace(".ff.ff2.lora_", ".mlp.down_proj.lora_")] = v
+            elif ".attn.qkv_proj.lora_" in k:
+                if "lora_A" in k:
+                    f_conv[k_t.replace(".attn.qkv_proj.lora_", ".self_attn.q_proj.lora_")] = v
+                    f_conv[k_t.replace(".attn.qkv_proj.lora_", ".self_attn.k_proj.lora_")] = v
+                    f_conv[k_t.replace(".attn.qkv_proj.lora_", ".self_attn.v_proj.lora_")] = v
+                else:
+                    v_q, v_k, v_v = torch.chunk(v, 3, dim=0)
+                    f_conv[k_t.replace(".attn.qkv_proj.lora_", ".self_attn.q_proj.lora_")] = v_q
+                    f_conv[k_t.replace(".attn.qkv_proj.lora_", ".self_attn.k_proj.lora_")] = v_k
+                    f_conv[k_t.replace(".attn.qkv_proj.lora_", ".self_attn.v_proj.lora_")] = v_v
+            elif ".attn.out_proj.lora_" in k:
+                f_conv[k_t.replace(".attn.out_proj.lora_", ".self_attn.o_proj.lora_")] = v
+            elif k in ["lora_config", "soft_prompt"]:
+                pass
+            else:
+                f_conv[k_t] = v
+        f = f_conv
 
         for key in f.keys():
             tensor = f[key]
