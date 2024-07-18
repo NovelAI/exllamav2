@@ -312,7 +312,7 @@ class ExLlamaV2MoEMLP(ExLlamaV2Module):
             return final_hidden_states
 
 
-    def update_loras(self):
+    def update_loras(self, whitelist=None):
         pass
         # if self.q_handle is None: return
         #

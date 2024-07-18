@@ -146,10 +146,10 @@ class ExLlamaV2ParallelDecoder(ExLlamaV2Module):
             return hidden_states
 
 
-    def update_loras(self):
+    def update_loras(self, id_whitelist=None):
 
-        self.attn.update_loras()
-        self.mlp.update_loras()
+        self.attn.update_loras(id_whitelist)
+        self.mlp.update_loras(id_whitelist)
 
 
     def is_quant(self) -> bool:

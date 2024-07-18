@@ -221,6 +221,7 @@ class ExLlamaV2:
         self.modules = []
         self.modules_dict = {}
         self.device_tensors = []
+        self.lora_map = {}
         self.cache_map = {}
         self.loaded = False
 
@@ -666,17 +667,20 @@ class ExLlamaV2:
         return [module for module in self.modules]  #?
 
 
-    def update_loras(self):
+    def update_loras(self, whitelist=None):
+        id_whitelist = None
+        if whitelist is not None:
+            id_whitelist = set([id(self.lora_map[name]) for name in whitelist if name in self.lora_map])
 
         for module in self.modules:
             if isinstance(module, ExLlamaV2ParallelDecoder):
-                module.update_loras()
+                module.update_loras(id_whitelist)
             if isinstance(module, ExLlamaV2Attention):
-                module.update_loras()
+                module.update_loras(id_whitelist)
             if isinstance(module, ExLlamaV2MLP):
-                module.update_loras()
+                module.update_loras(id_whitelist)
             if isinstance(module, ExLlamaV2MoEMLP):
-                module.update_loras()
+                module.update_loras(id_whitelist)
 
 
     def is_quant(self) -> bool:
@@ -700,6 +704,7 @@ class ExLlamaV2:
                 position_offsets: torch.Tensor | None = None,
                 abort_event: threading.Event | None = None,
                 cpu_logits: bool = False,
+                embs: torch.Tensor | None = None,
                 **kwargs) \
         -> torch.Tensor | tuple[torch.Tensor, torch.Tensor] | None:
         """
@@ -774,6 +779,7 @@ class ExLlamaV2:
                                         return_last_state = return_last_state,
                                         position_offsets = position_offsets,
                                         abort_event = abort_event,
+                                        embs = embs,
                                         **kwargs)
 
             if abort_event and abort_event.is_set(): return
@@ -837,6 +843,7 @@ class ExLlamaV2:
                 return_last_state = return_last_state and remaining_q_len <= chunk_size,
                 position_offsets = position_offsets,
                 abort_event = abort_event,
+                embs = embs,
                 **kwargs
             )
 
@@ -857,6 +864,16 @@ class ExLlamaV2:
             return result, last_state
 
 
+    def replace_tokens_with_given_embeddings(self, idx, x, embeddings):
+        print(idx.shape, x.shape)
+        for tid, emb in embeddings:
+            idx = idx.to(x.device)
+            emb = emb.to(x)
+            mask = (idx == tid).unsqueeze(-1).expand(-1, -1, x.shape[-1])
+            x = torch.where(mask, emb.reshape(1, 1, -1).expand(x.shape).to(x), x)
+        return x
+
+
     @torch.inference_mode()
     # @profile
     def forward_chunk(self,
@@ -871,6 +888,7 @@ class ExLlamaV2:
                       abort_event: threading.Event | None = None,
                       attn_params: ExLlamaV2Attention.Params | None = None,
                       extract_state_indices: list[int] | None = None,
+                      embs: torch.Tensor | None = None,
                       **kwargs) \
         -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
 
@@ -932,6 +950,9 @@ class ExLlamaV2:
                 device = n_device
 
             x = module.forward(x, cache = cache, attn_params = attn_params, past_len = past_len, loras = loras, **kwargs)
+
+            if idx == 0 and past_len == 0 and embs is not None:
+                x = self.replace_tokens_with_given_embeddings(input_ids, x, embs)
 
             if preprocess_only and idx == self.last_kv_layer_idx:
                 x = None

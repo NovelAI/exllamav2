@@ -1128,20 +1128,20 @@ class ExLlamaV2Attention(ExLlamaV2Module):
             return hidden_states
 
 
-    def update_loras(self):
+    def update_loras(self, whitelist=None):
 
         if self.q_handle is None: return
 
         cfg = self.model.config
 
-        q_proj_lora_a = { id(k): v for k, v in self.q_proj.lora_a_tensors.items() }
-        q_proj_lora_b = { id(k): v for k, v in self.q_proj.lora_b_tensors.items() }
-        k_proj_lora_a = { id(k): v for k, v in self.k_proj.lora_a_tensors.items() }
-        k_proj_lora_b = { id(k): v for k, v in self.k_proj.lora_b_tensors.items() }
-        v_proj_lora_a = { id(k): v for k, v in self.v_proj.lora_a_tensors.items() }
-        v_proj_lora_b = { id(k): v for k, v in self.v_proj.lora_b_tensors.items() }
-        o_proj_lora_a = { id(k): v for k, v in self.o_proj.lora_a_tensors.items() }
-        o_proj_lora_b = { id(k): v for k, v in self.o_proj.lora_b_tensors.items() }
+        q_proj_lora_a = { id(k): v for k, v in self.q_proj.lora_a_tensors.items() if whitelist is None or id(k) in whitelist }
+        q_proj_lora_b = { id(k): v for k, v in self.q_proj.lora_b_tensors.items() if whitelist is None or id(k) in whitelist }
+        k_proj_lora_a = { id(k): v for k, v in self.k_proj.lora_a_tensors.items() if whitelist is None or id(k) in whitelist }
+        k_proj_lora_b = { id(k): v for k, v in self.k_proj.lora_b_tensors.items() if whitelist is None or id(k) in whitelist }
+        v_proj_lora_a = { id(k): v for k, v in self.v_proj.lora_a_tensors.items() if whitelist is None or id(k) in whitelist }
+        v_proj_lora_b = { id(k): v for k, v in self.v_proj.lora_b_tensors.items() if whitelist is None or id(k) in whitelist }
+        o_proj_lora_a = { id(k): v for k, v in self.o_proj.lora_a_tensors.items() if whitelist is None or id(k) in whitelist }
+        o_proj_lora_b = { id(k): v for k, v in self.o_proj.lora_b_tensors.items() if whitelist is None or id(k) in whitelist }
 
         temp_lora_size = ext_c.q_attn_set_loras(self.q_handle,
                                                 q_proj_lora_a,

@@ -333,7 +333,7 @@ class ExLlamaV2MLP(ExLlamaV2Module):
             return hidden_states
 
 
-    def update_loras(self):
+    def update_loras(self, whitelist=None):
 
         if self.q_handle is None: return
 
@@ -341,13 +341,13 @@ class ExLlamaV2MLP(ExLlamaV2Module):
             gate_proj_lora_a = {}
             gate_proj_lora_b = {}
         else:
-            gate_proj_lora_a = { id(k): v for k, v in self.gate_proj.lora_a_tensors.items() }
-            gate_proj_lora_b = { id(k): v for k, v in self.gate_proj.lora_b_tensors.items() }
+            gate_proj_lora_a = { id(k): v for k, v in self.gate_proj.lora_a_tensors.items() if whitelist is None or id(k) in whitelist }
+            gate_proj_lora_b = { id(k): v for k, v in self.gate_proj.lora_b_tensors.items() if whitelist is None or id(k) in whitelist }
 
-        up_proj_lora_a = { id(k): v for k, v in self.up_proj.lora_a_tensors.items() }
-        up_proj_lora_b = { id(k): v for k, v in self.up_proj.lora_b_tensors.items() }
-        down_proj_lora_a = { id(k): v for k, v in self.down_proj.lora_a_tensors.items() }
-        down_proj_lora_b = { id(k): v for k, v in self.down_proj.lora_b_tensors.items() }
+        up_proj_lora_a = { id(k): v for k, v in self.up_proj.lora_a_tensors.items() if whitelist is None or id(k) in whitelist }
+        up_proj_lora_b = { id(k): v for k, v in self.up_proj.lora_b_tensors.items() if whitelist is None or id(k) in whitelist }
+        down_proj_lora_a = { id(k): v for k, v in self.down_proj.lora_a_tensors.items() if whitelist is None or id(k) in whitelist }
+        down_proj_lora_b = { id(k): v for k, v in self.down_proj.lora_b_tensors.items() if whitelist is None or id(k) in whitelist }
 
         temp_lora_size = ext_c.q_mlp_set_loras(self.q_handle,
                                                gate_proj_lora_a,

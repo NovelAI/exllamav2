@@ -44,8 +44,11 @@ class ExLlamaV2Lora:
                  model: ExLlamaV2,
                  lora_config_path: str,
                  lora_path: str,
-                 lora_scaling: float = 1.0):
+                 lora_scaling: float = 1.0,
+                 lora_name: str = None
+                 ):
 
+        name = lora_name
         self.lora_config_path = lora_config_path
         self.lora_path = lora_path
         self.model = model
@@ -70,6 +73,8 @@ class ExLlamaV2Lora:
         self.lora_r = read_config["r"]
         self.lora_alpha = float(read_config.get("lora_alpha", read_config.get("alpha", 1.0)))
         self.lora_scaling *= self.lora_alpha / self.lora_r
+        if name is None:
+            name = read_config.get("peft_name", None)
 
         if "fan_in_fan_out" in read_config and read_config["fan_in_fan_out"]:
             raise ValueError(" ## Error: fan_in_fan_out mode not supported.")
@@ -87,6 +92,11 @@ class ExLlamaV2Lora:
             self.lora_r = f["lora_config"]["r"]
             self.lora_alpha = f["lora_config"]["alpha"]
             self.lora_scaling = lora_scaling * (self.lora_alpha / self.lora_r)
+            if name is None:
+                name = f["lora_config"].get("peft_name", None)
+        if name is None:
+            name = str(id(self))
+        self.lora_name = name
         for k, v in f.items():
             k_t = re.sub("(lora_[AB]\.).*\.", lambda x: x[1], k)
             if ".ff.ff1.lora_" in k:
@@ -163,18 +173,6 @@ class ExLlamaV2Lora:
                 continue
 
             target_module = self.model.modules_dict["model.layers." + str(decoder_idx) + "." + decoder_part + "." + decoder_layer]
-            # if decoder_part == "self_attn": target_module = target_module.self_attn
-            # elif decoder_part == "mlp": target_module = target_module.mlp
-            # else: raise ValueError(f" ## Error: unsupported layer in {self.lora_path}: {key}")
-
-            # if   decoder_layer == "q_proj": target_module = target_module.q_proj
-            # elif decoder_layer == "k_proj": target_module = target_module.k_proj
-            # elif decoder_layer == "v_proj": target_module = target_module.v_proj
-            # elif decoder_layer == "o_proj": target_module = target_module.o_proj
-            # elif decoder_layer == "gate_proj": target_module = target_module.gate_proj
-            # elif decoder_layer == "up_proj": target_module = target_module.up_proj
-            # elif decoder_layer == "down_proj": target_module = target_module.down_proj
-            # else: raise ValueError(f" ## Error: unsupported layer in {self.lora_path}: {key}")
 
             # Check that shape is compatible
 
@@ -223,7 +221,9 @@ class ExLlamaV2Lora:
             self.tensors[target_key] = tensor
             self.target_modules[target_key] = target_module
 
-        self.model.update_loras()
+        assert self.lora_name not in self.model.lora_map
+        self.model.lora_map[self.lora_name] = self
+        self.model.update_loras(whitelist=[self.lora_name])
 
 
     def unload(self):
@@ -235,6 +235,7 @@ class ExLlamaV2Lora:
         self.tensors = {}
         self.target_modules = {}
 
+        del self.model.lora_map[self.lora_name]
         self.model.update_loras()
 
 
