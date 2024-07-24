@@ -1,5 +1,7 @@
 from __future__ import annotations
 import re
+
+import tensorizer
 from exllamav2.config import ExLlamaV2Config
 from exllamav2.linear import ExLlamaV2Linear
 import os, json
@@ -8,7 +10,7 @@ from torch import load as load_file
 import torch
 from exllamav2.compat import safe_move_tensor
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from exllamav2.model import ExLlamaV2
 
@@ -45,7 +47,10 @@ class ExLlamaV2Lora:
                  lora_config_path: str,
                  lora_path: str,
                  lora_scaling: float = 1.0,
-                 lora_name: str = None
+                 lora_name: str = None,
+                 lora_config: dict = None,
+                 lora_sd: Union[dict, tensorizer.TensorDeserializer] = None,
+                 lora_dtype: torch.dtype = None,
                  ):
 
         name = lora_name
@@ -67,8 +72,11 @@ class ExLlamaV2Lora:
 
         # Grab relevant items from LoRA config
 
-        with open(lora_config_path, encoding = "utf8") as f:
-            read_config = json.load(f)
+        if lora_config is not None:
+            read_config = lora_config
+        else:
+            with open(lora_config_path, encoding = "utf8") as f:
+                read_config = json.load(f)
 
         self.lora_r = read_config["r"]
         self.lora_alpha = float(read_config.get("lora_alpha", read_config.get("alpha", 1.0)))
@@ -80,14 +88,15 @@ class ExLlamaV2Lora:
             raise ValueError(" ## Error: fan_in_fan_out mode not supported.")
 
         # Load LoRA weights
-
-        if self.lora_path.endswith(".safetensors"):
-            f = safe_load_file(self.lora_path, device = "cpu")
+        if lora_sd is not None:
+            f = lora_sd
         else:
-            f = load_file(self.lora_path, map_location = "cpu")
+            if self.lora_path.endswith(".safetensors"):
+                f = safe_load_file(self.lora_path, device = "cpu")
+            else:
+                f = load_file(self.lora_path, map_location = "cpu")
 
-        # Convert Basedformer LoRA checkpoint to EXL2 format
-        f_conv = {}
+        # Read configuration data from checkpoint if it exists
         if "lora_config" in f:
             self.lora_r = f["lora_config"]["r"]
             self.lora_alpha = f["lora_config"]["alpha"]
@@ -97,8 +106,16 @@ class ExLlamaV2Lora:
         if name is None:
             name = str(id(self))
         self.lora_name = name
+
+        # Convert Basedformer LoRA checkpoint to EXL2 format
+        f_conv = {}
         for k, v in f.items():
             k_t = re.sub("(lora_[AB]\.).*\.", lambda x: x[1], k)
+            try:
+                if lora_dtype is not None:
+                    v = v.to(lora_dtype)
+            except:
+                pass
             if ".ff.ff1.lora_" in k:
                 if "lora_A" in k:
                     f_conv[k_t.replace(".ff.ff1.lora_", ".mlp.up_proj.lora_")] = v

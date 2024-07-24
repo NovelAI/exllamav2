@@ -222,6 +222,7 @@ class ExLlamaV2:
         self.modules_dict = {}
         self.device_tensors = []
         self.lora_map = {}
+        self.active_loras = []
         self.cache_map = {}
         self.loaded = False
 
@@ -667,10 +668,12 @@ class ExLlamaV2:
         return [module for module in self.modules]  #?
 
 
-    def update_loras(self, whitelist=None):
+    def update_loras(self, whitelist=[]):
         id_whitelist = None
+        self.active_loras = []
         if whitelist is not None:
             id_whitelist = set([id(self.lora_map[name]) for name in whitelist if name in self.lora_map])
+            self.active_loras = [self.lora_map[name] for name in whitelist if name in self.lora_map]
 
         for module in self.modules:
             if isinstance(module, ExLlamaV2ParallelDecoder):
@@ -891,6 +894,9 @@ class ExLlamaV2:
                       embs: torch.Tensor | None = None,
                       **kwargs) \
         -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+
+        if loras is None and len(self.active_loras) > 0:
+            loras = self.active_loras
 
         batch_size, seq_len = input_ids.shape
         past_len = 0
