@@ -140,6 +140,7 @@ class ExLlamaV2Config:
         self.scale_long_factor = None
         self.scale_short_factor = None
         self.alt_rope_method = None
+        self.write_state_dict = False
 
         self.no_flash_attn = 'EXLLAMA_NO_FLASH_ATTN' in os.environ
         self.no_xformers = 'EXLLAMA_NO_XFORMERS' in os.environ

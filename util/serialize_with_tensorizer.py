@@ -5,7 +5,7 @@ from exllamav2 import ExLlamaV2, ExLlamaV2Config, ExLlamaV2Tokenizer, \
 from exllamav2.generator import ExLlamaV2BaseGenerator, ExLlamaV2Sampler
 
 
-def serialize(model, serialized_dir: str = None):
+def serialize(model: ExLlamaV2, serialized_dir: str = None):
     from tensorizer import TensorSerializer
     import shutil
 
