@@ -122,7 +122,9 @@ class ExLlamaV2Config:
 
 
     def __init__(self,
-                 model_dir: str | None = None):
+                 model_dir: str | None = None,
+                 cfg_path: str | None = None,
+                 ):
         """
         :param model_dir:
             If specified, initialize ExLlamaV2Config with values read from model config.
@@ -151,7 +153,7 @@ class ExLlamaV2Config:
 
         if model_dir is not None:
             self.model_dir = model_dir
-            self.prepare()
+            self.prepare(cfg_path=cfg_path)
         else:
             self.model_dir = None
 
@@ -169,14 +171,17 @@ class ExLlamaV2Config:
 
     # Populate config with required files from model_dir
 
-    def prepare(self, no_tensors: bool = False):
+    def prepare(self, no_tensors: bool = False, cfg_path: str | None = None):
 
         assert self.model_dir is not None, "No model_dir specified in ExLlamaV2Config"
-        assert os.path.exists(self.model_dir), "Can't find " + self.model_dir
+        assert self.model_dir.startswith("s3://") or os.path.exists(self.model_dir), "Can't find " + self.model_dir
 
         # Load config.json
 
-        self.model_config = os.path.join(self.model_dir, "config.json")
+        if cfg_path is not None:
+            self.model_config = cfg_path
+        else:
+            self.model_config = os.path.join(self.model_dir, "config.json")
         assert os.path.exists(self.model_config), "Can't find " + self.model_config
 
         with open(self.model_config, encoding = "utf8") as f:
@@ -184,19 +189,20 @@ class ExLlamaV2Config:
 
         # Load generation_config.json
 
-        generation_config_path = os.path.join(self.model_dir, "generation_config.json")
-        if os.path.exists(generation_config_path):
-            with open(generation_config_path, encoding = "utf8") as f:
-                gen_config = json.load(f)
-                self.generation_config = {}
-                try:
-                    self.generation_config['eos_token_id'] = read(gen_config, list, "eos_token_id", None)
-                except (ValueError, TypeError):
-                    eos_token_id_as_int = read(gen_config, int, "eos_token_id", None)
-                    if eos_token_id_as_int is not None:
-                        self.generation_config['eos_token_id'] = [eos_token_id_as_int]
-                    else:
-                        self.generation_config['eos_token_id'] = None
+        if not self.model_dir.startswith("s3://"):
+            generation_config_path = os.path.join(self.model_dir, "generation_config.json")
+            if os.path.exists(generation_config_path):
+                with open(generation_config_path, encoding = "utf8") as f:
+                    gen_config = json.load(f)
+                    self.generation_config = {}
+                    try:
+                        self.generation_config['eos_token_id'] = read(gen_config, list, "eos_token_id", None)
+                    except (ValueError, TypeError):
+                        eos_token_id_as_int = read(gen_config, int, "eos_token_id", None)
+                        if eos_token_id_as_int is not None:
+                            self.generation_config['eos_token_id'] = [eos_token_id_as_int]
+                        else:
+                            self.generation_config['eos_token_id'] = None
 
         # Model architecture
 
@@ -333,8 +339,11 @@ class ExLlamaV2Config:
         # Even though this is lazy loaded, may be wasteful to have two TensorDeserializer instances
         if self.load_with_tensorizer:
             from tensorizer import TensorDeserializer
+            from tensorizer.stream_io import open_stream
             model_loc = self.model_dir or os.environ["TENSORIZER_LOC"]
-            self.tensor_file_map = TensorDeserializer(os.path.join(model_loc, "model.tensors"), lazy_load=True)
+            stream_url = os.path.join(model_loc, "model.tensors")
+            stream = open_stream(stream_url, mode="rb", s3_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID', None), s3_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'), s3_endpoint=os.environ.get('AWS_ENDPOINT_URL', None))
+            self.tensor_file_map = TensorDeserializer(stream, lazy_load=True)
 
         if len(self.tensor_files) == 0 and not self.load_with_tensorizer:
             raise ValueError(f" ## No .safetensors files found in {self.model_dir}")

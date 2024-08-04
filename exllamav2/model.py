@@ -299,7 +299,10 @@ class ExLlamaV2:
 
         if self.config.load_with_tensorizer:
             from tensorizer import TensorDeserializer
-            self.state_dict = TensorDeserializer(os.path.join(self.config.model_dir, "model.tensors"))
+            from tensorizer.stream_io import open_stream
+            stream_url = os.path.join(self.config.model_dir, "model.tensors")
+            stream = open_stream(stream_url, mode="rb", s3_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID', None), s3_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'), s3_endpoint=os.environ.get('AWS_ENDPOINT_URL', None))
+            self.state_dict = TensorDeserializer(stream)
 
         self.modules += [norm]
 
