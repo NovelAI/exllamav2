@@ -10,7 +10,9 @@ from typing import Any, Dict, List, TypeVar, Union, cast
 T = TypeVar('T')
 no_default = object()
 
-def read(input_dict: dict[str, Any], expected_type: type, keys: str | list[str], default = no_default) -> T:
+def read(input_dict: dict[str, Any], expected_type: type | list[type], keys: str | list[str], default = no_default) -> T:
+
+    expected_types = expected_type if isinstance(expected_type, list) else [expected_type]
 
     if isinstance(keys, str): keys = [keys]
 
@@ -34,10 +36,10 @@ def read(input_dict: dict[str, Any], expected_type: type, keys: str | list[str],
             if expected_type == int and isinstance(x, float) and x == int(x):
                 x = int(x)
 
-            if isinstance(x, expected_type):
-                return cast(T, x)
-            else:
-                raise TypeError(f"Value for {key} is not of expected type {expected_type}")
+            for t in expected_types:
+                if isinstance(x, t):
+                    return cast(T, x)
+            raise TypeError(f"Value for {key} is not of expected type {expected_type}")
 
     if default != no_default: return default
     raise ValueError(f"Missing any of the following keys: {keys}")
@@ -73,6 +75,11 @@ class ExLlamaV2Config:
     tensor_file_map: dict
     tensor_files: list
 
+    # Tensorizer args
+    write_state_dict: bool                      # Whether to construct a state_dict, necessary for serializing with `tensorizer`
+    load_with_tensorizer: bool                  # Deserialize tensors with `tensorizer`. Model tensors are expected to be found in model_dir/model.tensors or 'TENSORIZER_LOC'
+    # TODO: May want to raise a NameError/ValueError/warning if no model.tensors file can be found in model_dir/*
+
     tokenizer_path: str
 
     bos_token_id: int
@@ -105,8 +112,13 @@ class ExLlamaV2Config:
     final_logit_softcapping: float | None
     attn_logit_softcapping: float | None
     sliding_window: int
-
+    norm_head: int | None
+    l3_rope_factor: float | None
+    l3_rope_low_freq_factor: float | None
+    l3_rope_high_freq_factor: float | None
+    l3_rope_original_max_position_embeddings: int | None
     checkpoint_fused_mlp: bool
+    checkpoint_offset_qzeros: bool
 
 
     def __init__(self,
@@ -131,6 +143,10 @@ class ExLlamaV2Config:
         self.no_xformers = 'EXLLAMA_NO_XFORMERS' in os.environ
         self.no_sdpa = 'EXLLAMA_NO_SDPA' in os.environ
         self.fasttensors = 'EXLLAMA_FASTTENSORS' in os.environ
+
+        ## TODO: Think of a nicer way than this
+        self.load_with_tensorizer = 'TENSORIZER' in os.environ
+
         self.load_in_q4 = False
 
         if model_dir is not None:
@@ -191,9 +207,12 @@ class ExLlamaV2Config:
         # Vocab params
 
         self.bos_token_id = read(read_config, int, "bos_token_id", None)  # 1
-        self.eos_token_id = read(read_config, int, "eos_token_id", None)  # 2
+        self.eos_token_id = read(read_config, [int, list], "eos_token_id", None)  # 2
         self.pad_token_id = read(read_config, int, "pad_token_id", None)  # 0
         self.vocab_size = read(read_config, int, "vocab_size")
+
+        if isinstance(self.eos_token_id, list):
+            self.eos_token_id = self.eos_token_id[0]  # TODO: Figure out a way to maybe use all the EOS tokens somehow
 
         # Standard params
 
@@ -253,6 +272,10 @@ class ExLlamaV2Config:
         self.attn_logit_softcapping = read(read_config, float, "attn_logit_softcapping", None)
         self.final_logit_softcapping = read(read_config, float, "final_logit_softcapping", None)
 
+        # Normalize weights in head layer
+
+        self.norm_head = read(read_config, int, "norm_head", None)
+
         # Positional embeddings
 
         self.rotary_embedding_base = read(read_config, float, ["rope_theta", "attn_config->rope_theta"], 10000.0)
@@ -284,23 +307,44 @@ class ExLlamaV2Config:
                 self.alt_rope_method = "su"
             # if scaling_type == "yarn":
             #     self.scale_alpha_value = factor
+            rope_type = rs.get("rope_type", None)
+            if rope_type == "llama3":
+                self.alt_rope_method = "llama3"
+                self.l3_rope_factor = rs["factor"]
+                self.l3_rope_low_freq_factor = rs["low_freq_factor"]
+                self.l3_rope_high_freq_factor = rs["high_freq_factor"]
+                self.l3_rope_original_max_position_embeddings = rs["original_max_position_embeddings"]
+
+        # Checkpoint format (for GPTQ models)
+
+        checkpoint_format = read(read_config, str, ["quantization_config->checkpoint_format"], None)
+        self.checkpoint_offset_qzeros = (checkpoint_format == "gptq_v2")
 
         # Create map of model tensors
 
         if no_tensors: return
 
-        self.tensor_file_map = {}
+        self.tensor_file_map: dict | TensorDeserializer = {}
+
 
         st_pattern = os.path.join(self.model_dir, "*.safetensors")
         self.tensor_files = glob.glob(st_pattern)
 
-        if len(self.tensor_files) == 0:
+        # Even though this is lazy loaded, may be wasteful to have two TensorDeserializer instances
+        if self.load_with_tensorizer:
+            from tensorizer import TensorDeserializer
+            model_loc = self.model_dir or os.environ["TENSORIZER_LOC"]
+            self.tensor_file_map = TensorDeserializer(os.path.join(model_loc, "model.tensors"), lazy_load=True)
+
+        if len(self.tensor_files) == 0 and not self.load_with_tensorizer:
             raise ValueError(f" ## No .safetensors files found in {self.model_dir}")
 
-        for st_file in self.tensor_files:
-            f = STFile.open(st_file, fast = self.fasttensors, keymap = self.arch.keymap)
-            for key in f.get_dict():
-                self.tensor_file_map[key] = st_file
+        if not self.load_with_tensorizer:
+            for st_file in self.tensor_files:
+                f = STFile.open(st_file, fast = self.fasttensors, keymap = self.arch.keymap)
+                for key in f.get_dict():
+                    self.tensor_file_map[key] = st_file
+
 
         # For loading checkpoints with fused MLP layers
 

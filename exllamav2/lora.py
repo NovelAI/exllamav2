@@ -145,6 +145,8 @@ class ExLlamaV2Lora:
         f = f_conv
 
         for key in f.keys():
+            if any(key.endswith(x) for x in [".original_module.weight", ".modules_to_save.weight"]):
+                continue
             tensor = f[key]
 
             # Find target

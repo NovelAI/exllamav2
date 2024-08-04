@@ -1,14 +1,24 @@
-pandas
+pandas~=2.2.2
 ninja
 wheel
-setuptools
-fastparquet
+setuptools~=59.6.0
+fastparquet~=2024.5.0
 torch>=2.2.0
 safetensors>=0.4.3
 sentencepiece>=0.1.97
-pygments
-websockets
-regex
+pygments~=2.18.0
+websockets~=12.0
+regex~=2024.7.24
 numpy~=1.26.4
-tokenizers
-rich
+tokenizers~=0.19.1
+rich~=13.7.1
+tqdm~=4.66.4
+transformers~=4.43.3
+
+# TODO: I'm importing tensorizer only in instances
+#       when tensorizer is explicitly invoked. Should I therefore make this
+#       a required dependency..?
+tensorizer~=2.9.0
+
+# TODO: Additionally consider whether explicitly specifying versions
+#       for these dependencies is helpful or not?
