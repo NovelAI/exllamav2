@@ -1,17 +1,12 @@
 import base64
 import json
 import os
-import time
 
 from exllamav2 import (
     ExLlamaV2,
     ExLlamaV2Config,
     ExLlamaV2Cache_8bit,
     ExLlamaV2Tokenizer,
-)
-from exllamav2.generator import (
-    ExLlamaV2BaseGenerator,
-    ExLlamaV2Sampler
 )
 
 # Note: code here is very unrefined and sloppy; primarily used for
@@ -20,8 +15,6 @@ from exllamav2.generator import (
 
 model_dir = "../downloaded_models/model"
 serialized_dir = "../downloaded_models/tensorized"
-import torch
-import gc
 
 
 def load_model(model_dir, split=None, cache_8bit=True, serialize=False,
@@ -45,50 +38,11 @@ def load_model(model_dir, split=None, cache_8bit=True, serialize=False,
     tokenizer = ExLlamaV2Tokenizer(config)
 
     if serialize:
-        from util.serialize_with_tensorizer import serialize
+        from util.tensorizer_utils import serialize
         serialize(model, serialized_dir)
 
     cache = ExLlamaV2Cache_8bit(model, batch_size=4)
     return model, tokenizer, cache
-
-
-def tensorizer_load():
-    os.environ['TENSORIZER'] = '1'
-    os.environ[
-        'TENSORIZER_LOC'] = "../downloaded_models/tensorized/serialized_llama_state_dict.tensors"
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    model_dir = "../downloaded_models/tensorized/"
-    model_a = load_model(model_dir=model_dir)
-
-
-def gen(model, tokenizer, cache, prompt, max_new_tokens):
-    print("--------------------------------")
-    print("Generating, normal")
-    print()
-
-    generator = ExLlamaV2BaseGenerator(model, cache, tokenizer)
-
-    settings = ExLlamaV2Sampler.Settings()
-    settings.temperature = 0  # Keep it purely deterministic to ensure weights are the same
-    settings.top_k = 50
-    settings.top_p = 0.8
-    settings.top_a = 0.0
-    settings.token_repetition_penalty = 1.15
-    settings.disallow_tokens(tokenizer, [tokenizer.eos_token_id])
-
-    generator.warmup()
-    time_begin = time.time()
-
-    output = generator.generate_simple(prompt, settings, max_new_tokens,
-                                       seed=1234)
-
-    time_end = time.time()
-    time_total = time_end - time_begin
-
-    print(output)
-    return output
 
 
 def get_tensors(module):
@@ -167,3 +121,44 @@ def test_tensorizer_loaded_is_same_model():
     hash_dict_b = json.load(open(f'{serialized_dir}/hash_dict_tensorized.json'))
 
     assert hash_dict_a == hash_dict_b
+
+# TODO: Add test for asserting deserialized config sameness with original config
+def test_serializing_s3():
+    s3_path = os.environ["S3_URI"] if "S3_URI" in os.environ else None
+    s3_access_key_id = os.environ["S3_ACCESS_KEY_ID"] if "S3_ACCESS_KEY_ID" in os.environ else None
+    s3_secret_access_key = os.environ["S3_SECRET_ACCESS_KEY"] if "S3_SECRET_ACCESS_KEY" in os.environ else None
+    s3_endpoint = os.environ["S3_ENDPOINT_URL"] if "S3_ENDPOINT_URL" in os.environ else None
+
+    from util.tensorizer_utils import serialize
+
+    config = ExLlamaV2Config()
+    config.model_dir = model_dir
+    config.write_state_dict = True
+
+    config.prepare()
+
+    model = ExLlamaV2(config)
+    model.load()
+
+    serialize(model,
+              serialized_dir=s3_path,
+              s3_access_key_id=s3_access_key_id,
+              s3_secret_access_key=s3_secret_access_key,
+              s3_endpoint=s3_endpoint
+              )
+
+def test_deserialize_s3():
+    s3_path = os.environ["S3_URI"] if "S3_URI" in os.environ else None
+    s3_access_key_id = os.environ["S3_ACCESS_KEY_ID"] if "S3_ACCESS_KEY_ID" in os.environ else None
+    s3_secret_access_key = os.environ["S3_SECRET_ACCESS_KEY"] if "S3_SECRET_ACCESS_KEY" in os.environ else None
+    s3_endpoint = os.environ["S3_ENDPOINT_URL"] if "S3_ENDPOINT_URL" in os.environ else None
+
+    from util.tensorizer_utils import deserialize_with_tensorizer
+
+    model = deserialize_with_tensorizer(s3_path,
+                                         s3_access_key_id=s3_access_key_id,
+                                         s3_secret_access_key=s3_secret_access_key,
+                                         s3_endpoint=s3_endpoint
+                                         )
+
+    assert model

@@ -149,6 +149,11 @@ class ExLlamaV2Config:
 
         ## TODO: Think of a nicer way than this
         self.load_with_tensorizer = 'TENSORIZER' in os.environ
+        self.tensorizer_args = {
+            "s3_access_key_id": os.environ.get("S3_ACCESS_KEY_ID"),
+            "s3_secret_access_key": os.environ.get("S3_SECRET_ACCESS_KEY"),
+            "s3_endpoint": os.environ.get("S3_ENDPOINT_URL"),
+        }
 
         self.load_in_q4 = False
 
@@ -177,16 +182,23 @@ class ExLlamaV2Config:
         assert self.model_dir is not None, "No model_dir specified in ExLlamaV2Config"
         assert self.model_dir.startswith("s3://") or os.path.exists(self.model_dir), "Can't find " + self.model_dir
 
-        # Load config.json
+        if not self.load_with_tensorizer:
+            assert os.path.exists(self.model_dir), "Can't find " + self.model_dir
 
-        if cfg_path is not None:
-            self.model_config = cfg_path
-        else:
+            # Load config.json
+
             self.model_config = os.path.join(self.model_dir, "config.json")
-        assert os.path.exists(self.model_config), "Can't find " + self.model_config
+            assert os.path.exists(self.model_config), "Can't find " + self.model_config
 
-        with open(self.model_config, encoding = "utf8") as f:
-            read_config = json.load(f)
+            with open(self.model_config, encoding = "utf8") as f:
+                read_config = json.load(f)
+        else:
+            from util.tensorizer_utils import read_stream
+            with read_stream(
+                    os.path.join(self.model_dir, "config.json"),
+                    **self.tensorizer_args) as stream:
+                read_config = json.loads(stream.read().decode("utf-8"))
+
 
         # Load generation_config.json
 
@@ -340,11 +352,14 @@ class ExLlamaV2Config:
         # Even though this is lazy loaded, may be wasteful to have two TensorDeserializer instances
         if self.load_with_tensorizer:
             from tensorizer import TensorDeserializer
-            from tensorizer.stream_io import open_stream
+            from util.tensorizer_utils import read_stream
+
             model_loc = self.model_dir or os.environ["TENSORIZER_LOC"]
-            stream_url = os.path.join(model_loc, "model.tensors")
-            stream = open_stream(stream_url, mode="rb", s3_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID', None), s3_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'), s3_endpoint=os.environ.get('AWS_ENDPOINT_URL', None))
-            self.tensor_file_map = TensorDeserializer(stream, lazy_load=True)
+            with read_stream(
+                    os.path.join(model_loc, "model.tensors"),
+                    **self.tensorizer_args) as stream:
+
+                self.tensor_file_map = TensorDeserializer(stream, lazy_load=True)
 
         if len(self.tensor_files) == 0 and not self.load_with_tensorizer:
             raise ValueError(f" ## No .safetensors files found in {self.model_dir}")
