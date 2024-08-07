@@ -343,13 +343,12 @@ class ExLlamaV2Config:
 
         if no_tensors: return
 
-        self.tensor_file_map: dict | TensorDeserializer = {}
+        self.tensor_file_map: dict = {}
 
 
         st_pattern = os.path.join(self.model_dir, "*.safetensors")
         self.tensor_files = glob.glob(st_pattern)
 
-        # Even though this is lazy loaded, may be wasteful to have two TensorDeserializer instances
         if self.load_with_tensorizer:
             from tensorizer import TensorDeserializer
             from util.tensorizer_utils import read_stream
@@ -359,7 +358,7 @@ class ExLlamaV2Config:
                     os.path.join(model_loc, "model.tensors"),
                     **self.tensorizer_args) as stream:
 
-                self.tensor_file_map = TensorDeserializer(stream, lazy_load=True)
+                self.tensor_file_map = dict.fromkeys(TensorDeserializer(stream, lazy_load=True))
 
         if len(self.tensor_files) == 0 and not self.load_with_tensorizer:
             raise ValueError(f" ## No .safetensors files found in {self.model_dir}")

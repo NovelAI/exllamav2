@@ -97,7 +97,7 @@ class ExLlamaV2Module:
                 else:
                     tensors[k] = stfile.get_tensor(key + "." + k, device = self.device())
                     if self.model.config.write_state_dict:
-                        self.model.state_dict[key + "." + k] = tensors[k]
+                        self.model.state_dict[key + "." + k] = tensors[k].to(device="cpu", copy=True)
 
         return size if measure else tensors
 

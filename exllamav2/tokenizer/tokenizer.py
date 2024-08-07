@@ -112,7 +112,7 @@ class ExLlamaV2Tokenizer:
             ) as stream:
                     with open(os.path.join(temp_dir.name, "tokenizer.json"), "wb") as f:
                         f.write(stream.read())
-        self.config.model_dir = temp_dir.name
+            self.config.model_dir = temp_dir.name
         with io_handler(config.load_with_tensorizer):
             path_spm = os.path.join(self.config.model_dir, "tokenizer.model")
             path_hf = os.path.join(self.config.model_dir, "tokenizer.json")

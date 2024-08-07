@@ -141,7 +141,7 @@ def test_serializing_s3():
     model.load()
 
     serialize(model,
-              serialized_dir=s3_path,
+              s3_path,
               s3_access_key_id=s3_access_key_id,
               s3_secret_access_key=s3_secret_access_key,
               s3_endpoint=s3_endpoint
