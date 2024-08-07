@@ -104,7 +104,7 @@ class ExLlamaV2Tokenizer:
         temp_dir = tempfile.TemporaryDirectory()
 
         ## TODO: This is hideous. Clean this up once it works
-        from util.tensorizer_utils import io_handler, read_stream
+        from tensorizer_utils import io_handler, read_stream
         if self.config.load_with_tensorizer:
             with read_stream(
                 os.path.join(self.config.model_dir, "tokenizer.json"),
@@ -544,7 +544,7 @@ class ExLlamaV2Tokenizer:
             text = self.decode_(ids, decode_special_tokens)
             return text
 
-    
+
     # Create padding mask
 
     def padding_mask(self,

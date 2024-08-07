@@ -299,7 +299,7 @@ class ExLlamaV2:
 
         if self.config.load_with_tensorizer:
             from tensorizer import TensorDeserializer
-            from util.tensorizer_utils import read_stream
+            from tensorizer_utils import read_stream
             with read_stream(
                     os.path.join(self.config.model_dir, "model.tensors"),
                     **self.config.tensorizer_args) as stream:

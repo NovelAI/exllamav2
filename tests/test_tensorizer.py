@@ -38,7 +38,7 @@ def load_model(model_dir, split=None, cache_8bit=True, serialize=False,
     tokenizer = ExLlamaV2Tokenizer(config)
 
     if serialize:
-        from util.tensorizer_utils import serialize
+        from exllamav2.tensorizer_utils import serialize
         serialize(model, serialized_dir)
 
     cache = ExLlamaV2Cache_8bit(model, batch_size=4)
@@ -129,7 +129,7 @@ def test_serializing_s3():
     s3_secret_access_key = os.environ["S3_SECRET_ACCESS_KEY"] if "S3_SECRET_ACCESS_KEY" in os.environ else None
     s3_endpoint = os.environ["S3_ENDPOINT_URL"] if "S3_ENDPOINT_URL" in os.environ else None
 
-    from util.tensorizer_utils import serialize
+    from exllamav2.tensorizer_utils import serialize
 
     config = ExLlamaV2Config()
     config.model_dir = model_dir
@@ -153,7 +153,7 @@ def test_deserialize_s3():
     s3_secret_access_key = os.environ["S3_SECRET_ACCESS_KEY"] if "S3_SECRET_ACCESS_KEY" in os.environ else None
     s3_endpoint = os.environ["S3_ENDPOINT_URL"] if "S3_ENDPOINT_URL" in os.environ else None
 
-    from util.tensorizer_utils import deserialize_with_tensorizer
+    from exllamav2.tensorizer_utils import deserialize_with_tensorizer
 
     model = deserialize_with_tensorizer(s3_path,
                                          s3_access_key_id=s3_access_key_id,

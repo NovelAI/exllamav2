@@ -28,7 +28,7 @@ def serialize(model, serialized_dir, s3_creds=None):
     local_tokenizer_json_path = os.path.join(model.config.model_dir, "tokenizer.json")
     local_tokenizer_config_json_path = os.path.join(model.config.model_dir, "tokenizer_config.json")
 
-    for path in (local_config_path, local_tokenizer_json_path):
+    for path in [local_config_path]:
         if not os.path.exists(path):
             raise FileNotFoundError(f"File not found: {path}")
 

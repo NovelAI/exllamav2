@@ -193,7 +193,7 @@ class ExLlamaV2Config:
             with open(self.model_config, encoding = "utf8") as f:
                 read_config = json.load(f)
         else:
-            from util.tensorizer_utils import read_stream
+            from tensorizer_utils import read_stream
             with read_stream(
                     os.path.join(self.model_dir, "config.json"),
                     **self.tensorizer_args) as stream:
@@ -351,7 +351,7 @@ class ExLlamaV2Config:
 
         if self.load_with_tensorizer:
             from tensorizer import TensorDeserializer
-            from util.tensorizer_utils import read_stream
+            from tensorizer_utils import read_stream
 
             model_loc = self.model_dir or os.environ["TENSORIZER_LOC"]
             with read_stream(
