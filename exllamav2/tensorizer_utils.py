@@ -10,7 +10,12 @@ from exllamav2.generator import ExLlamaV2BaseGenerator, ExLlamaV2Sampler
 
 def open_wrapper(path, mode, **kwargs):
     if path.startswith("s3://"):
-        return stream_io.open_stream(path, mode, **kwargs)
+        s3_creds = {
+            "s3_access_key_id": os.environ.get("AWS_ACCESS_KEY_ID", None),
+            "s3_secret_access_key": os.environ.get("AWS_SECRET_ACCESS_KEY", None),
+            "s3_endpoint": os.environ.get("AWS_ENDPOINT_URL", None),
+        }
+        return stream_io.open_stream(path, mode, **s3_creds)
     else:
         return open(path, mode)
 
