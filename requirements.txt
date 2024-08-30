@@ -1,4 +1,4 @@
-pandas~=2.2.2
+pandas
 ninja
 wheel
 setuptools~=59.6.0
